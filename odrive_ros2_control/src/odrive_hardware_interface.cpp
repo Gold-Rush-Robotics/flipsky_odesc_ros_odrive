@@ -254,9 +254,16 @@ return_type ODriveHardwareInterface::perform_command_mode_switch(
 return_type ODriveHardwareInterface::read(const rclcpp::Time& timestamp, const rclcpp::Duration&) {
     timestamp_ = timestamp;
 
-    while (can_intf_.read_nonblocking()) {
-        // repeat until CAN interface has no more messages
+    // Ask each axis to send its encoder estimates (v0.5 requires this)
+    for (auto& axis : axes_) {
+        struct can_frame rtr_frame;
+        rtr_frame.can_id = (axis.node_id_ << 5) | Get_Encoder_Estimates_msg_t::cmd_id | CAN_RTR_FLAG;
+        rtr_frame.can_dlc = 0;
+        can_intf_.send_can_frame(rtr_frame);
     }
+
+    // Now the ODrive responds, and on_can_msg processes the response
+    while (can_intf_.read_nonblocking()) {}
 
     return return_type::OK;
 }
